@@ -90,7 +90,7 @@ export function cleanDate(value?: string | null) {
 }
 
 export function initials(name?: string) {
-  return (name || 'Teacher')
+  return (name || 'Parent')
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)

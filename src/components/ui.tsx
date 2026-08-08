@@ -1,8 +1,10 @@
 /**
  * Shared Ant Design Mobile building blocks.
  *
- * Every screen composes these rather than restyling Ant primitives inline, so
- * headings, empty states and status chips stay identical across the app.
+ * Padding contract:
+ * - Screen owns the page inset (16).
+ * - Ant Design RN Card.Body has NO default horizontal padding. Always use
+ *   `<CardContent>` (or wrap Body children in a View with `cardBodyPad`).
  */
 import React, {ReactNode} from 'react';
 import {
@@ -27,20 +29,91 @@ import {
 import {IconOutline, OutlineGlyphMapType} from '@ant-design/icons-react-native';
 import {colors, font, radius, spacing, statusColor} from '../theme';
 
+/** Inner padding for card content — 16px sides, 12px vertical. */
+export const cardBodyPad = {
+  paddingVertical: spacing.m,
+  paddingHorizontal: spacing.l,
+};
+
+/** Zero Ant Body chrome so our wrapper owns all padding. */
+const emptyBodyStyles = {
+  body: {
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    minHeight: 0,
+    borderTopWidth: 0,
+    flexGrow: 0,
+  },
+};
+
+/** Pass to `<Card.Header styles={cardHeaderStyles}>`. */
+export const cardHeaderStyles = {
+  headerWrap: {
+    paddingVertical: spacing.m,
+    paddingLeft: spacing.l,
+    paddingRight: spacing.l,
+    marginLeft: 0,
+    alignItems: 'center' as const,
+  },
+};
+
+/** @deprecated Prefer CardContent — kept for call sites. */
+export const cardBodyStyles = emptyBodyStyles;
+export const compactCardStyles = {
+  card: {
+    borderRadius: radius.l,
+    paddingBottom: 0,
+    overflow: 'hidden' as const,
+  },
+  ...cardHeaderStyles,
+  ...emptyBodyStyles,
+};
+
 /**
- * Icon-and-label content for an Ant `Button`.
- *
- * Passing an icon element and a string as sibling children of a Button lays
- * them out as two lines, and the Button's fixed height then clips the label.
- * Wrapping both in one centred row keeps the label on the icon's line.
+ * Card.Body with real horizontal padding.
+ * Ant's Body has zero side padding by default, and parent Card `styles`
+ * do not cascade — always use this (or wrap content yourself).
  */
+export function CardContent({children}: {children: ReactNode}) {
+  // Ant CardBody types omit `children`; runtime View accepts them.
+  const Body = Card.Body as React.ComponentType<{styles?: object; children?: ReactNode}>;
+  return (
+    <Body styles={emptyBodyStyles}>
+      <View style={cardBodyPad}>{children}</View>
+    </Body>
+  );
+}
+
+/** Card shell with correct body padding built in. */
+export function AppCard({
+  children,
+  style,
+  onPress,
+}: {
+  children: ReactNode;
+  style?: object;
+  onPress?: () => void;
+}) {
+  const card = (
+    <Card style={[styles.appCard, style]}>
+      <CardContent>{children}</CardContent>
+    </Card>
+  );
+  return onPress ? (
+    <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
+      {card}
+    </TouchableOpacity>
+  ) : (
+    card
+  );
+}
+
 export function ButtonLabel({
   icon,
   tone = 'default',
   children,
 }: {
   icon: OutlineGlyphMapType;
-  /** `onPrimary` for filled buttons, `danger` for destructive ones. */
   tone?: 'default' | 'onPrimary' | 'danger';
   children: ReactNode;
 }) {
@@ -102,16 +175,31 @@ export function PageTitle({title, subtitle}: {title: string; subtitle?: string})
   );
 }
 
-export function SectionTitle({title, extra}: {title: string; extra?: ReactNode}) {
+export function SectionTitle({
+  title,
+  extra,
+  onExtraPress,
+}: {
+  title: string;
+  extra?: ReactNode;
+  onExtraPress?: () => void;
+}) {
   return (
     <Flex justify="between" align="center" style={styles.sectionRow}>
       <Text style={styles.sectionTitle}>{title}</Text>
-      {extra}
+      {extra ? (
+        onExtraPress ? (
+          <TouchableOpacity onPress={onExtraPress} hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+            {typeof extra === 'string' ? <Text style={styles.sectionLink}>{extra}</Text> : extra}
+          </TouchableOpacity>
+        ) : (
+          extra
+        )
+      ) : null}
     </Flex>
   );
 }
 
-/** Dismissible error banner. Renders nothing when there is no error. */
 export function ErrorBar({message, onClose}: {message: string; onClose: () => void}) {
   if (!message) {
     return null;
@@ -126,7 +214,6 @@ export function ErrorBar({message, onClose}: {message: string; onClose: () => vo
   );
 }
 
-/** Status chip whose colour is derived from the API's own status wording. */
 export function StatusTag({status}: {status?: string | null}) {
   const label = String(status || 'Pending');
   const color = statusColor(label);
@@ -137,33 +224,59 @@ export function StatusTag({status}: {status?: string | null}) {
   );
 }
 
-/** Compact stat tile used on the dashboard. */
+/** Compact icon tile used in summary rows (notices count, etc.). */
+export function IconBadge({
+  icon,
+  color = colors.primary,
+  background = colors.wathet,
+}: {
+  icon: OutlineGlyphMapType;
+  color?: string;
+  background?: string;
+}) {
+  return (
+    <View style={[styles.iconBadge, {backgroundColor: background}]}>
+      <AntIcon name={icon} color={color} size={18} />
+    </View>
+  );
+}
+
 export function StatCard({
   icon,
   value,
   label,
   color = colors.primary,
+  onPress,
 }: {
   icon: OutlineGlyphMapType;
   value: number | string;
   label: string;
   color?: string;
+  onPress?: () => void;
 }) {
-  return (
+  const body = (
     <Card style={styles.statCard}>
-      <Card.Body>
-        <AntIcon name={icon} color={color} />
-        <Text style={styles.statNumber}>{value}</Text>
-        <Text style={styles.statLabel}>{label}</Text>
-      </Card.Body>
+      <CardContent>
+        <Flex align="center">
+          <IconBadge icon={icon} color="#fff" background={color} />
+          <View style={styles.statText}>
+            <Text style={styles.statNumber}>{value}</Text>
+            <Text style={styles.statLabel}>{label}</Text>
+          </View>
+          {onPress ? <AntIcon name="right" color={colors.weak} size={16} /> : null}
+        </Flex>
+      </CardContent>
     </Card>
+  );
+  return onPress ? (
+    <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
+      {body}
+    </TouchableOpacity>
+  ) : (
+    body
   );
 }
 
-/**
- * Standard scrollable screen body: consistent padding, optional pull to
- * refresh, and a slot for the error banner every screen shows in the same spot.
- */
 export function Screen({
   children,
   refreshing,
@@ -178,10 +291,6 @@ export function Screen({
   onDismissError?: () => void;
 }) {
   return (
-    // Targeting SDK 35+ forces edge-to-edge, which stops the manifest's
-    // `adjustResize` from shrinking the window when the keyboard opens — so
-    // without this the keyboard sits on top of whatever field has focus.
-    // `padding` is the behaviour that works once the window no longer resizes.
     <KeyboardAvoidingView style={styles.flex} behavior="padding">
       <ScrollView
         contentContainerStyle={styles.pageContent}
@@ -200,7 +309,7 @@ export function Screen({
         {error && onDismissError ? (
           <>
             <ErrorBar message={error} onClose={onDismissError} />
-            <WhiteSpace size="lg" />
+            <WhiteSpace size="md" />
           </>
         ) : null}
         {children}
@@ -210,10 +319,6 @@ export function Screen({
   );
 }
 
-/**
- * One record rendered as a card: title, status chip, meta lines and an
- * optional body. Used by leave, homework, assignment, exam and event lists.
- */
 export function RecordCard({
   title,
   status,
@@ -234,27 +339,29 @@ export function RecordCard({
   const lines = (meta || []).filter(Boolean);
   const card = (
     <Card style={styles.recordCard}>
-      <Card.Header
-        title={<Text style={styles.recordTitle}>{title}</Text>}
-        thumb={icon ? <AntIcon name={icon} size={20} /> : undefined}
-        extra={status ? <StatusTag status={status} /> : undefined}
-      />
-      {lines.length || body || footer ? (
-        <Card.Body>
-          {lines.map((line, index) => (
-            <Text key={index} style={styles.recordMeta}>
-              {line}
-            </Text>
-          ))}
-          {body ? <Text style={styles.recordBody}>{body}</Text> : null}
-          {footer}
-        </Card.Body>
-      ) : null}
+      <CardContent>
+        <Flex align="start">
+          {icon ? <IconBadge icon={icon} /> : null}
+          <View style={styles.recordMain}>
+            <Flex justify="between" align="start">
+              <Text style={styles.recordTitle} numberOfLines={2}>
+                {title}
+              </Text>
+              {status ? <StatusTag status={status} /> : null}
+            </Flex>
+            {lines.map((line, index) => (
+              <Text key={index} style={styles.recordMeta}>
+                {line}
+              </Text>
+            ))}
+            {body ? <Text style={styles.recordBody}>{body}</Text> : null}
+            {footer}
+          </View>
+        </Flex>
+      </CardContent>
     </Card>
   );
 
-  // Ant's Card is not pressable itself, so only wrap it when the caller wants
-  // the whole card to act as a target.
   return onPress ? (
     <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
       {card}
@@ -264,7 +371,6 @@ export function RecordCard({
   );
 }
 
-/** Label/value row for read-only detail lists. */
 export function DetailRows({rows}: {rows: [string, any][]}) {
   const visible = rows.filter(([, value]) => value !== null && value !== undefined && value !== '');
   if (!visible.length) {
@@ -287,28 +393,42 @@ export const styles = StyleSheet.create({
   buttonLabelDefault: {fontSize: font.l, color: colors.primary, marginLeft: 6},
   buttonLabelOnPrimary: {fontSize: font.l, color: '#fff', marginLeft: 6},
   buttonLabelDanger: {fontSize: font.l, color: colors.danger, marginLeft: 6},
-  centeredBlock: {flex: 1, minHeight: 300, alignItems: 'center', justifyContent: 'center'},
-  pageContent: {padding: spacing.l, paddingBottom: 40},
-  pageHeading: {marginBottom: spacing.l + 2},
-  pageTitle: {fontSize: 25, lineHeight: 32, fontWeight: '700', color: colors.text},
-  pageSubtitle: {fontSize: font.m, lineHeight: 21, color: colors.textSecondary, marginTop: 3},
-  sectionRow: {marginBottom: spacing.m},
+  centeredBlock: {flex: 1, minHeight: 240, alignItems: 'center', justifyContent: 'center'},
+  /** Single page inset — cards must not add another horizontal margin. */
+  pageContent: {
+    paddingHorizontal: spacing.l,
+    paddingTop: spacing.m,
+    paddingBottom: spacing.xl,
+  },
+  pageHeading: {marginBottom: spacing.m},
+  pageTitle: {fontSize: 24, lineHeight: 30, fontWeight: '700', color: colors.text},
+  pageSubtitle: {fontSize: font.m, lineHeight: 20, color: colors.textSecondary, marginTop: 2},
+  sectionRow: {marginBottom: spacing.s, marginTop: spacing.s},
   sectionTitle: {fontSize: font.xxl, fontWeight: '700', color: colors.text},
-  statusTag: {borderRadius: radius.s},
-  statCard: {width: '31%', borderRadius: radius.l},
-  statNumber: {fontSize: 23, fontWeight: '700', color: colors.text, marginTop: 7},
-  statLabel: {fontSize: font.s, color: colors.textSecondary, marginTop: 2},
-  recordCard: {marginBottom: spacing.m, borderRadius: radius.l},
-  recordTitle: {fontSize: font.l, fontWeight: '600', color: colors.text},
-  recordMeta: {fontSize: font.main, lineHeight: 20, color: colors.textSecondary},
+  sectionLink: {fontSize: font.m, color: colors.primary, fontWeight: '500'},
+  statusTag: {borderRadius: radius.s, marginLeft: 8},
+  iconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.m,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  statCard: {marginBottom: spacing.m, borderRadius: radius.l, overflow: 'hidden'},
+  statText: {flex: 1},
+  statNumber: {fontSize: 22, fontWeight: '700', color: colors.text, lineHeight: 26},
+  statLabel: {fontSize: font.main, color: colors.textSecondary, marginTop: 2},
+  recordCard: {marginBottom: spacing.m, borderRadius: radius.l, overflow: 'hidden'},
+  appCard: {marginBottom: spacing.m, borderRadius: radius.l, overflow: 'hidden'},
+  recordMain: {flex: 1},
+  recordTitle: {flex: 1, fontSize: font.l, fontWeight: '600', color: colors.text, marginRight: 8},
+  recordMeta: {fontSize: font.main, lineHeight: 18, color: colors.textSecondary, marginTop: 4},
   recordBody: {
     fontSize: font.main,
-    lineHeight: 20,
+    lineHeight: 18,
     color: colors.text,
     marginTop: spacing.s,
-    paddingTop: spacing.s,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
   },
   detailLabel: {fontSize: font.m, color: colors.textSecondary},
   detailValue: {fontSize: font.m, color: colors.text},

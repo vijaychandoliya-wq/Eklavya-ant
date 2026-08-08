@@ -1,9 +1,16 @@
-import React from 'react';
-import {Image, StyleSheet} from 'react-native';
-import {Button, Card, Text, View, WhiteSpace} from '@ant-design/react-native';
-import {AnyRecord} from '../api';
-import {initials} from '../hooks';
-import {ButtonLabel, DetailRows, PageTitle, Screen, SectionTitle} from '../components/ui';
+import React, {useCallback} from 'react';
+import {StyleSheet} from 'react-native';
+import {Button, Card, Text, WhiteSpace} from '@ant-design/react-native';
+import {AnyRecord, getChildDetails, getSelectedChild} from '../api';
+import {useAsyncData} from '../hooks';
+import {
+  AntIcon,
+  ButtonLabel,
+  CardContent,
+  LoadingBlock,
+  Screen,
+  cardHeaderStyles,
+} from '../components/ui';
 import {ScreenKey} from '../navigation';
 import {colors, font, radius} from '../theme';
 
@@ -14,63 +21,57 @@ export default function ProfileScreen({
   profile: AnyRecord | null;
   navigate: (screen: ScreenKey) => void;
 }) {
-  const rows: [string, any][] = [
-    ['Employee ID', profile?.employeeId],
-    ['Designation', profile?.designation_name || profile?.designation],
-    ['Class teacher', profile?.classTeacher],
-    ['Email', profile?.email || profile?.emailId],
-    ['Mobile', profile?.mobile_no || profile?.mobileNo],
-    ['Date of birth', profile?.date_of_birth],
-    ['Joining date', profile?.joiningDate],
-    ['Gender', profile?.gender],
-    ['Blood group', profile?.bloodGroup],
-    ['Address', profile?.address],
-  ];
-
+  const loader = useCallback(async () => {
+    const child = await getSelectedChild();
+    const details = await getChildDetails(child?.student_id);
+    return {child, details};
+  }, []);
+  const {data, loading, refreshing, error, refresh, clearError} = useAsyncData(loader, {
+    child: null,
+    details: {},
+  });
+  if (loading) {
+    return <LoadingBlock />;
+  }
+  const details = data.details || {};
   return (
-    <Screen>
-      <PageTitle title="My profile" subtitle="Teacher information from your school account." />
-
-      <Card style={styles.profileCard}>
-        <Card.Body>
-          <View style={styles.avatar}>
-            {profile?.avatar ? (
-              <Image source={{uri: profile.avatar}} style={styles.avatarImage} />
-            ) : (
-              <Text style={styles.avatarInitials}>{initials(profile?.fullname)}</Text>
-            )}
-          </View>
-          <Text style={styles.name}>{profile?.fullname || 'Teacher'}</Text>
-          <Text style={styles.role}>{profile?.designation_name || profile?.designation || 'Gurukull Teacher'}</Text>
-        </Card.Body>
+    <Screen refreshing={refreshing} onRefresh={refresh} error={error} onDismissError={clearError}>
+      <Card style={styles.card}>
+        <Card.Header styles={cardHeaderStyles} title="Parent" thumb={<AntIcon name="user" />} />
+        <CardContent>
+          <Text style={styles.line}>{profile?.name || 'Parent'}</Text>
+          <Text style={styles.meta}>{profile?.email || ''}</Text>
+        </CardContent>
       </Card>
-
+      <WhiteSpace size="md" />
+      <Card style={styles.card}>
+        <Card.Header
+          styles={cardHeaderStyles}
+          title="Selected child"
+          thumb={<AntIcon name="user" />}
+        />
+        <CardContent>
+          <Text style={styles.line}>{details.fullName || data.child?.name || 'Child'}</Text>
+          <Text style={styles.meta}>
+            {details.gender} · DOB {details.dateOfBirth || '—'}
+          </Text>
+          <Text style={styles.meta}>
+            {details.className || details.standard || details.schoolName || ''}
+          </Text>
+        </CardContent>
+      </Card>
       <WhiteSpace size="lg" />
-      <SectionTitle title="Account details" />
-      <DetailRows rows={rows} />
-
-      <WhiteSpace size="xl" />
-      <Button onPress={() => navigate('changePassword')}>
-        <ButtonLabel icon="lock">Change password</ButtonLabel>
+      <Button type="primary" onPress={() => navigate('changePassword')}>
+        <ButtonLabel icon="lock" tone="onPrimary">
+          Change password
+        </ButtonLabel>
       </Button>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  profileCard: {borderRadius: radius.l},
-  avatar: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    backgroundColor: colors.wathet,
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    overflow: 'hidden',
-  },
-  avatarImage: {width: 84, height: 84},
-  avatarInitials: {fontSize: 28, fontWeight: '700', color: colors.primary},
-  name: {fontSize: 21, fontWeight: '700', color: colors.text, textAlign: 'center', marginTop: 12},
-  role: {fontSize: font.m, color: colors.textSecondary, textAlign: 'center', marginTop: 3},
+  card: {borderRadius: radius.l, overflow: 'hidden'},
+  line: {fontSize: font.xxl, fontWeight: '700', color: colors.text},
+  meta: {fontSize: font.main, color: colors.textSecondary, marginTop: 4},
 });

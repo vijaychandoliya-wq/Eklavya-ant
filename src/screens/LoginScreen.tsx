@@ -1,30 +1,42 @@
 import React, {useState} from 'react';
-import {KeyboardAvoidingView, ScrollView, StatusBar, StyleSheet} from 'react-native';
+import {KeyboardAvoidingView, Platform, ScrollView, StatusBar, StyleSheet} from 'react-native';
 import {Button, Card, Form, Input, Text, View, WhiteSpace} from '@ant-design/react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {login} from '../api';
+import {login, logoutAllDevices} from '../api';
 import {friendlyError} from '../hooks';
-import {AntIcon, ErrorBar} from '../components/ui';
+import {AntIcon, ButtonLabel, CardContent, ErrorBar, cardHeaderStyles} from '../components/ui';
 import {colors, font, radius, spacing} from '../theme';
 
 export default function LoginScreen({onSuccess}: {onSuccess: () => void}) {
-  const [email, setEmail] = useState('');
+  const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const submit = async () => {
-    if (!email.trim() || !password) {
-      setError('Enter your teacher email and password.');
+    if (!mobile.trim() || !password) {
+      setError('Enter your mobile number and password.');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      await login(email, password);
+      await login(mobile, password);
       onSuccess();
-    } catch (reason) {
-      setError(friendlyError(reason));
+    } catch (reason: any) {
+      const message = friendlyError(reason);
+      if (/another device/i.test(message)) {
+        try {
+          await logoutAllDevices(mobile);
+          await login(mobile, password);
+          onSuccess();
+          return;
+        } catch (retryError) {
+          setError(friendlyError(retryError));
+          return;
+        }
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -33,55 +45,49 @@ export default function LoginScreen({onSuccess}: {onSuccess: () => void}) {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-      {/* `padding` on Android too: the app targets SDK 36, where edge-to-edge
-          is mandatory and the manifest's `adjustResize` no longer shrinks the
-          window, so leaving behavior undefined lets the keyboard bury the
-          password field and the sign-in button. */}
-      <KeyboardAvoidingView style={styles.flex} behavior="padding">
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.brandMark}>
-            <AntIcon name="book" color="#fff" size={36} />
+            <AntIcon name="team" color="#fff" size={36} />
           </View>
-          <Text style={styles.title}>Gurukull Teacher</Text>
-          <Text style={styles.subtitle}>Your classes, timetable and leave requests in one place.</Text>
+          <Text style={styles.title}>Eklavya</Text>
+          <Text style={styles.subtitle}>Parent app for Gurukull — attendance, homework and school updates.</Text>
           <WhiteSpace size="xl" />
           <Card style={styles.card}>
-            <Card.Header title="Teacher sign in" thumb={<AntIcon name="safety-certificate" />} />
-            <Card.Body>
+            <Card.Header
+              styles={cardHeaderStyles}
+              title="Parent sign in"
+              thumb={<AntIcon name="safety-certificate" />}
+            />
+            <CardContent>
               <ErrorBar message={error} onClose={() => setError('')} />
               <WhiteSpace size="lg" />
               <Form layout="vertical">
-                <Form.Item label="Email" required>
+                <Form.Item label="Mobile number" required>
                   <Input
-                    value={email}
-                    onChangeText={setEmail}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="email-address"
-                    placeholder="teacher@gurukull.in"
-                    prefix={<AntIcon name="mail" color={colors.weak} size={19} />}
-                    allowClear
+                    type="number"
+                    value={mobile}
+                    onChangeText={setMobile}
+                    placeholder="Registered mobile number"
                   />
                 </Form.Item>
                 <Form.Item label="Password" required>
                   <Input
+                    type="password"
                     value={password}
                     onChangeText={setPassword}
-                    type="password"
-                    placeholder="Enter password"
-                    prefix={<AntIcon name="lock" color={colors.weak} size={19} />}
+                    placeholder="Password"
                   />
                 </Form.Item>
               </Form>
               <WhiteSpace size="lg" />
-              <Button type="primary" size="large" loading={loading} disabled={loading} onPress={submit}>
-                Sign in
+              <Button type="primary" loading={loading} onPress={submit}>
+                <ButtonLabel icon="check-circle" tone="onPrimary">
+                  Sign in
+                </ButtonLabel>
               </Button>
-            </Card.Body>
+            </CardContent>
           </Card>
-          <Text style={styles.secure}>
-            <AntIcon name="safety" color={colors.success} size={15} /> Secure connection to app.gurukull.in
-          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -91,22 +97,17 @@ export default function LoginScreen({onSuccess}: {onSuccess: () => void}) {
 const styles = StyleSheet.create({
   flex: {flex: 1},
   safe: {flex: 1, backgroundColor: colors.background},
-  content: {flexGrow: 1, justifyContent: 'center', padding: spacing.xl},
+  content: {padding: spacing.xl, paddingTop: 48},
   brandMark: {
     width: 72,
     height: 72,
-    borderRadius: 22,
+    borderRadius: 36,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'center',
-    shadowColor: colors.primary,
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
+    marginBottom: 16,
   },
-  title: {fontSize: 28, lineHeight: 36, fontWeight: '700', color: colors.text, textAlign: 'center', marginTop: 18},
-  subtitle: {fontSize: font.l, lineHeight: 22, color: colors.textSecondary, textAlign: 'center', marginTop: 6},
+  title: {fontSize: 32, fontWeight: '700', color: colors.text},
+  subtitle: {fontSize: font.main, color: colors.textSecondary, marginTop: 8, lineHeight: 22},
   card: {borderRadius: radius.l, overflow: 'hidden'},
-  secure: {fontSize: font.ms, color: colors.textSecondary, textAlign: 'center', marginTop: spacing.xl - 4},
 });

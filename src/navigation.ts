@@ -2,94 +2,88 @@ import {OutlineGlyphMapType} from '@ant-design/icons-react-native';
 
 export type ScreenKey =
   | 'dashboard'
-  | 'timetable'
-  | 'attendance'
-  | 'absentList'
+  | 'profile'
+  | 'leave'
+  | 'changePassword'
+  | 'trackLocation'
+  | 'school'
+  | 'notices'
+  | 'events'
+  | 'classEvents'
+  | 'magazine'
   | 'homework'
-  | 'homeworkSubmissions'
   | 'assignments'
-  | 'submissions'
   | 'exams'
   | 'examMarks'
-  | 'tasks'
-  | 'taskCompose'
-  | 'lessonPlans'
-  | 'leave'
-  | 'leaveApprovals'
-  | 'studentLeave'
-  | 'approvals'
-  | 'notices'
-  | 'notifications'
-  | 'events'
-  | 'holidays'
-  | 'messages'
+  | 'timetable'
+  | 'attendance'
   | 'discipline'
-  | 'school'
-  | 'profile'
-  | 'changePassword';
+  | 'feedback'
+  | 'messages'
+  | 'staff'
+  | 'lessonPlans'
+  | 'fees'
+  | 'onlineClass';
 
-/** Params carried into drill-down screens (exam mark entry needs a schedule). */
 export type ScreenParams = Record<string, any>;
-
 export type Route = {key: ScreenKey; params?: ScreenParams};
 
 export type ScreenMeta = {
   key: ScreenKey;
   title: string;
   icon: OutlineGlyphMapType;
-  /** Hidden from the drawer: reached by drilling down from another screen. */
   nested?: boolean;
-  /**
-   * Only listed when the teacher holds this role. The server enforces the same
-   * roles on the underlying endpoints; this just keeps the drawer honest about
-   * what the teacher can actually do.
-   */
-  role?: string;
+  group?: string;
 };
 
-/**
- * Single source of truth for screen titles, drawer icons and menu order. The
- * top bar title, the drawer and the dashboard shortcuts all read from here, so
- * a new screen is added in exactly one place.
- */
-export const SCREENS: ScreenMeta[] = [
-  {key: 'dashboard', title: 'Dashboard', icon: 'dashboard'},
-  {key: 'timetable', title: 'Timetable', icon: 'calendar'},
-  {key: 'attendance', title: 'Attendance', icon: 'check-square'},
-  {key: 'absentList', title: 'Absentees', icon: 'history', nested: true},
-  {key: 'homework', title: 'Homework', icon: 'book'},
-  {key: 'homeworkSubmissions', title: 'Homework submissions', icon: 'audit', nested: true},
-  {key: 'assignments', title: 'Assignments', icon: 'file-text'},
-  {key: 'submissions', title: 'Submissions', icon: 'audit', nested: true},
-  {key: 'exams', title: 'Exams & marks', icon: 'solution'},
-  {key: 'examMarks', title: 'Enter marks', icon: 'edit', nested: true},
-  {key: 'tasks', title: 'My tasks', icon: 'check-circle'},
-  {key: 'taskCompose', title: 'New task', icon: 'plus-circle', nested: true},
-  {key: 'lessonPlans', title: 'Lesson plans', icon: 'read'},
-  {key: 'leave', title: 'Leave', icon: 'form'},
-  {key: 'leaveApprovals', title: 'Leave approvals', icon: 'audit', role: 'leave_checker'},
-  {key: 'studentLeave', title: 'Student leave', icon: 'team', role: 'student_leave_checker'},
-  {key: 'approvals', title: 'Approvals', icon: 'safety-certificate', role: 'principal'},
-  {key: 'notices', title: 'Notice board', icon: 'notification'},
-  {key: 'notifications', title: 'Notifications', icon: 'bell'},
-  {key: 'events', title: 'Events', icon: 'flag'},
-  {key: 'holidays', title: 'Holidays', icon: 'gift'},
+/** Primary destinations shown in the bottom tab bar. */
+export const BOTTOM_TABS: ScreenMeta[] = [
+  {key: 'dashboard', title: 'Home', icon: 'home'},
+  {key: 'events', title: 'Calendar', icon: 'calendar'},
   {key: 'messages', title: 'Messages', icon: 'message'},
-  {key: 'discipline', title: 'Performance', icon: 'trophy'},
-  {key: 'school', title: 'My school', icon: 'bank'},
-  {key: 'profile', title: 'My profile', icon: 'user'},
-  {key: 'changePassword', title: 'Change password', icon: 'lock', nested: true},
+  {key: 'profile', title: 'Profile', icon: 'user'},
 ];
 
-/**
- * Drawer entries for a teacher, given the roles `myinfo` reports in
- * `permissions`. Role-gated screens are left out entirely rather than shown and
- * then refused.
- */
-export function menuFor(roles: string[] | undefined): ScreenMeta[] {
-  const held = roles || [];
-  return SCREENS.filter(screen => !screen.nested && (!screen.role || held.includes(screen.role)));
+const BOTTOM_KEYS = new Set(BOTTOM_TABS.map(tab => tab.key));
+
+export const SCREENS: ScreenMeta[] = [
+  {key: 'dashboard', title: 'Home', icon: 'home', group: 'Main'},
+  {key: 'profile', title: 'Profile', icon: 'user', group: 'Profile'},
+  {key: 'leave', title: 'Apply leave', icon: 'form', group: 'Profile'},
+  {key: 'changePassword', title: 'Change password', icon: 'lock', group: 'Profile', nested: true},
+  {key: 'trackLocation', title: 'Track location', icon: 'compass', group: 'Profile'},
+  {key: 'school', title: 'School info', icon: 'bank', group: 'School'},
+  {key: 'notices', title: 'Notice board', icon: 'notification', group: 'School'},
+  {key: 'events', title: 'Calendar', icon: 'calendar', group: 'School'},
+  {key: 'classEvents', title: 'Class events', icon: 'flag', group: 'Classes'},
+  {key: 'magazine', title: 'Magazine', icon: 'read', group: 'School'},
+  {key: 'homework', title: 'Homework', icon: 'book', group: 'Classes'},
+  {key: 'assignments', title: 'Assignments', icon: 'file-text', group: 'Classes'},
+  {key: 'exams', title: 'Exams', icon: 'solution', group: 'Classes'},
+  {key: 'examMarks', title: 'Exam marks', icon: 'edit', nested: true},
+  {key: 'timetable', title: 'Timetable', icon: 'schedule', group: 'Classes'},
+  {key: 'attendance', title: 'Attendance', icon: 'check-square', group: 'Classes'},
+  {key: 'discipline', title: 'Discipline', icon: 'trophy', group: 'Classes'},
+  {key: 'messages', title: 'Messages', icon: 'message', group: 'Others'},
+  {key: 'feedback', title: 'Feedback', icon: 'mail', group: 'Others'},
+  {key: 'staff', title: 'Staff info', icon: 'team', group: 'Others'},
+  {key: 'lessonPlans', title: 'Lesson plan', icon: 'profile', group: 'Others'},
+  {key: 'fees', title: 'Fees', icon: 'account-book', group: 'Others'},
+  {key: 'onlineClass', title: 'Online class', icon: 'video-camera', group: 'Others'},
+];
+
+/** Drawer lists secondary destinations only (not bottom-tab roots). */
+export const DRAWER_MENU = SCREENS.filter(
+  screen => !screen.nested && !BOTTOM_KEYS.has(screen.key),
+);
+
+/** @deprecated use DRAWER_MENU — kept for any leftover imports */
+export const MENU = DRAWER_MENU;
+
+export function screenTitle(key: ScreenKey) {
+  return SCREENS.find(screen => screen.key === key)?.title || 'Eklavya';
 }
 
-export const screenTitle = (key: ScreenKey) =>
-  SCREENS.find(screen => screen.key === key)?.title ?? 'Gurukull Teacher';
+export function isBottomTab(key: ScreenKey) {
+  return BOTTOM_KEYS.has(key);
+}
