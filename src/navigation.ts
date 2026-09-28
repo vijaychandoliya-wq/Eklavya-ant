@@ -20,6 +20,7 @@ export type ScreenKey =
   | 'discipline'
   | 'feedback'
   | 'messages'
+  | 'chatRoom'
   | 'staff'
   | 'lessonPlans'
   | 'fees'
@@ -40,7 +41,7 @@ export type ScreenMeta = {
 export const BOTTOM_TABS: ScreenMeta[] = [
   {key: 'dashboard', title: 'Home', icon: 'home'},
   {key: 'events', title: 'Calendar', icon: 'calendar'},
-  {key: 'messages', title: 'Messages', icon: 'message'},
+  {key: 'messages', title: 'Chats', icon: 'message'},
   {key: 'profile', title: 'Profile', icon: 'user'},
 ];
 
@@ -64,7 +65,8 @@ export const SCREENS: ScreenMeta[] = [
   {key: 'timetable', title: 'Timetable', icon: 'schedule', group: 'Classes'},
   {key: 'attendance', title: 'Attendance', icon: 'check-square', group: 'Classes'},
   {key: 'discipline', title: 'Discipline', icon: 'trophy', group: 'Classes'},
-  {key: 'messages', title: 'Messages', icon: 'message', group: 'Others'},
+  {key: 'messages', title: 'Chats', icon: 'message', group: 'Others'},
+  {key: 'chatRoom', title: 'Chat', icon: 'message', nested: true},
   {key: 'feedback', title: 'Feedback', icon: 'mail', group: 'Others'},
   {key: 'staff', title: 'Staff info', icon: 'team', group: 'Others'},
   {key: 'lessonPlans', title: 'Lesson plan', icon: 'profile', group: 'Others'},

@@ -1,4 +1,4 @@
-import React, {useCallback, useState} from 'react';
+import React, {useCallback, useMemo, useState} from 'react';
 import {StyleSheet, TouchableOpacity} from 'react-native';
 import {Card, Flex, Picker, Tag, Text, View} from '@ant-design/react-native';
 import {
@@ -21,7 +21,9 @@ import {
   SectionTitle,
 } from '../components/ui';
 import {ScreenKey} from '../navigation';
-import {colors, font, radius, spacing} from '../theme';
+import {colorsDark, font, radius, spacing, useAppTheme, type AppColors} from '../theme';
+
+type Palette = AppColors | typeof colorsDark;
 
 const SHORTCUTS: {
   key: ScreenKey;
@@ -54,6 +56,8 @@ export default function DashboardScreen({
   profile: AnyRecord | null;
   onChildChanged: () => void;
 }) {
+  const {colors, isDark} = useAppTheme();
+  const styles = useMemo(() => makeDashboardStyles(colors), [colors]);
   const [pickerVisible, setPickerVisible] = useState(false);
   const loader = useCallback(async (): Promise<Data> => {
     const [school, notices, children, child] = await Promise.all([
@@ -76,6 +80,9 @@ export default function DashboardScreen({
   }
 
   const firstName = String(profile?.name || 'Parent').split(' ')[0];
+  const shortcuts = isDark
+    ? SHORTCUTS.map(item => ({...item, background: colors.wathet}))
+    : SHORTCUTS;
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh} error={error} onDismissError={clearError}>
@@ -110,7 +117,7 @@ export default function DashboardScreen({
 
       <SectionTitle title="Quick actions" extra="View all" onExtraPress={() => navigate('timetable')} />
       <View style={styles.grid}>
-        {SHORTCUTS.map(item => (
+        {shortcuts.map(item => (
           <TouchableOpacity
             key={item.key}
             style={styles.gridItem}
@@ -175,56 +182,58 @@ export default function DashboardScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  flex: {flex: 1},
-  greetingRow: {marginBottom: spacing.m},
-  hello: {fontSize: 24, lineHeight: 30, fontWeight: '700', color: colors.text},
-  schoolName: {fontSize: font.m, color: colors.textSecondary, marginTop: 2},
-  schoolMark: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.l,
-    backgroundColor: colors.wathet,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 12,
-  },
-  block: {marginBottom: spacing.m, borderRadius: radius.l, overflow: 'hidden'},
-  childTag: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.wathet,
-    borderColor: colors.wathet,
-    marginBottom: 8,
-  },
-  childRow: {marginTop: 2},
-  childName: {fontSize: font.xxl, fontWeight: '700', color: colors.text},
-  childMeta: {fontSize: font.main, color: colors.textSecondary, marginTop: 2},
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: spacing.s,
-  },
-  gridItem: {
-    width: '31.5%',
-    backgroundColor: colors.surface,
-    borderRadius: radius.l,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    marginBottom: spacing.s,
-  },
-  gridIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.m,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  gridLabel: {fontSize: font.s, color: colors.text, textAlign: 'center', fontWeight: '500'},
-  noticeCount: {fontSize: 22, fontWeight: '700', color: colors.text, lineHeight: 26},
-  noticeLabel: {fontSize: font.main, color: colors.textSecondary, marginTop: 2},
-});
+function makeDashboardStyles(c: Palette) {
+  return StyleSheet.create({
+    flex: {flex: 1},
+    greetingRow: {marginBottom: spacing.m},
+    hello: {fontSize: 24, lineHeight: 30, fontWeight: '700', color: c.text},
+    schoolName: {fontSize: font.m, color: c.textSecondary, marginTop: 2},
+    schoolMark: {
+      width: 48,
+      height: 48,
+      borderRadius: radius.l,
+      backgroundColor: c.wathet,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 12,
+    },
+    block: {marginBottom: spacing.m, borderRadius: radius.l, overflow: 'hidden'},
+    childTag: {
+      alignSelf: 'flex-start',
+      backgroundColor: c.wathet,
+      borderColor: c.drawerHeaderBorder,
+      marginBottom: 8,
+    },
+    childRow: {marginTop: 2},
+    childName: {fontSize: font.xxl, fontWeight: '700', color: c.text},
+    childMeta: {fontSize: font.main, color: c.textSecondary, marginTop: 2},
+    grid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+      marginBottom: spacing.s,
+    },
+    gridItem: {
+      width: '31.5%',
+      backgroundColor: c.surface,
+      borderRadius: radius.l,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: c.border,
+      paddingVertical: 14,
+      paddingHorizontal: 8,
+      alignItems: 'center',
+      marginBottom: spacing.s,
+    },
+    gridIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.m,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 8,
+    },
+    gridLabel: {fontSize: font.s, color: c.text, textAlign: 'center', fontWeight: '500'},
+    noticeCount: {fontSize: 22, fontWeight: '700', color: c.text, lineHeight: 26},
+    noticeLabel: {fontSize: font.main, color: c.textSecondary, marginTop: 2},
+  });
+}

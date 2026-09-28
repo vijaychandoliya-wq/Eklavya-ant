@@ -3,11 +3,13 @@
  * accepts. Shared by staff leave, student leave and principal approvals so the
  * confirmation wording and the comment field behave identically everywhere.
  */
-import React, {useState} from 'react';
+import React, {useMemo, useState} from 'react';
 import {StyleSheet} from 'react-native';
 import {Button, Flex, Input, Modal, Text, Toast, View, WhiteSpace} from '@ant-design/react-native';
 import {friendlyError} from '../hooks';
-import {colors, font, spacing} from '../theme';
+import {colorsDark, font, spacing, useAppTheme, type AppColors} from '../theme';
+
+type Palette = AppColors | typeof colorsDark;
 
 export function ApprovalActions({
   label,
@@ -23,6 +25,8 @@ export function ApprovalActions({
   onDone: () => Promise<void>;
   onError: (message: string) => void;
 }) {
+  const {colors} = useAppTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const [comments, setComments] = useState('');
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -91,9 +95,11 @@ export function ApprovalActions({
   );
 }
 
-const styles = StyleSheet.create({
-  action: {flex: 1},
-  gap: {width: spacing.s},
-  rejectText: {color: colors.danger},
-  addComment: {fontSize: font.ms, color: colors.primary},
-});
+function makeStyles(c: Palette) {
+  return StyleSheet.create({
+    action: {flex: 1},
+    gap: {width: spacing.s},
+    rejectText: {color: c.danger},
+    addComment: {fontSize: font.ms, color: c.primary},
+  });
+}

@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
-import {StatusBar, StyleSheet, TouchableOpacity} from 'react-native';
+import {Image, StatusBar, StyleSheet, TouchableOpacity} from 'react-native';
 import {Badge, Button, Drawer, Flex, List, Provider, Text, View} from '@ant-design/react-native';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
@@ -14,9 +14,10 @@ import {
   getSelectedChild,
   hasSession,
   logout,
+  onSessionExpired,
 } from './src/api';
 import {initials} from './src/hooks';
-import {AntIcon, ButtonLabel, LoadingBlock} from './src/components/ui';
+import {AntIcon, Avatar, ButtonLabel, LoadingBlock} from './src/components/ui';
 import {
   BOTTOM_TABS,
   DRAWER_MENU,
@@ -26,7 +27,14 @@ import {
   isBottomTab,
   screenTitle,
 } from './src/navigation';
-import {antdTheme, colors, font, spacing} from './src/theme';
+import {
+  ThemeProvider,
+  colorsDark,
+  font,
+  spacing,
+  useAppTheme,
+  type AppColors,
+} from './src/theme';
 
 import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
@@ -48,10 +56,132 @@ import AttendanceScreen from './src/screens/AttendanceScreen';
 import DisciplineScreen from './src/screens/DisciplineScreen';
 import FeedbackScreen from './src/screens/FeedbackScreen';
 import MessagesScreen from './src/screens/MessagesScreen';
+import ChatRoomScreen from './src/screens/ChatRoomScreen';
 import StaffScreen from './src/screens/StaffScreen';
 import LessonPlansScreen from './src/screens/LessonPlansScreen';
 import FeesScreen from './src/screens/FeesScreen';
 import OnlineClassScreen from './src/screens/OnlineClassScreen';
+
+type Palette = AppColors | typeof colorsDark;
+
+function makeShellStyles(c: Palette) {
+  return StyleSheet.create({
+    flex: {flex: 1},
+    appSafe: {flex: 1, backgroundColor: c.surface},
+    appShell: {flex: 1, backgroundColor: c.background},
+    topBar: {
+      backgroundColor: c.surface,
+      paddingHorizontal: spacing.l,
+      paddingVertical: 10,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
+    },
+    topBarTitle: {
+      fontSize: font.xxl,
+      fontWeight: '600',
+      color: c.text,
+      flex: 1,
+      textAlign: 'center',
+      marginHorizontal: 8,
+    },
+    topBarCenter: {
+      flex: 1,
+      marginHorizontal: 4,
+      minWidth: 0,
+    },
+    topBarAvatar: {
+      marginRight: 8,
+    },
+    topBarTitleWithAvatar: {
+      textAlign: 'left',
+      marginHorizontal: 0,
+    },
+    iconHit: {
+      minWidth: 40,
+      minHeight: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerAvatar: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 4,
+    },
+    headerAvatarText: {color: '#fff', fontSize: font.ms, fontWeight: '700'},
+    drawerSafe: {flex: 1, backgroundColor: c.surface},
+    drawerHeader: {
+      paddingHorizontal: 22,
+      paddingTop: 16,
+      paddingBottom: spacing.l,
+      backgroundColor: c.drawerHeaderBg,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.drawerHeaderBorder,
+    },
+    drawerBrandRow: {flexDirection: 'row', alignItems: 'center', marginBottom: 14},
+    drawerBrandLogo: {width: 36, height: 36, borderRadius: 8, marginRight: 10},
+    drawerBrandName: {fontSize: 18, fontWeight: '700', color: '#fff'},
+    drawerAvatar: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      borderWidth: 3,
+      borderColor: c.surface,
+    },
+    drawerInitials: {fontSize: 24, fontWeight: '700', color: '#fff'},
+    drawerName: {fontSize: font.huge, fontWeight: '700', color: c.text, marginTop: 12},
+    drawerRole: {fontSize: font.main, color: c.textSecondary, marginTop: 3},
+    drawerList: {marginTop: 10},
+    activeMenuLine: {backgroundColor: c.wathet},
+    activeMenuText: {fontSize: font.l, fontWeight: '600', color: c.primary},
+    menuText: {fontSize: font.l, color: c.text},
+    /** Ant only applies Thumb margin when thumb is an image URI — wrap icons. */
+    menuThumb: {marginRight: 12, alignItems: 'center', justifyContent: 'center'},
+    drawerFooter: {
+      marginTop: 'auto',
+      padding: 18,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.border,
+    },
+    versionText: {fontSize: font.s, color: c.weak, textAlign: 'center', marginTop: 12},
+    bottomNav: {
+      flexDirection: 'row',
+      backgroundColor: c.surface,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.border,
+      paddingTop: 6,
+      paddingBottom: 4,
+    },
+    bottomNavItem: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 4,
+      minHeight: 48,
+    },
+    bottomNavLabel: {
+      marginTop: 2,
+      fontSize: font.s,
+      color: c.weak,
+    },
+    bottomNavLabelActive: {
+      color: c.primary,
+      fontWeight: '600',
+    },
+  });
+}
+
+function useShellStyles() {
+  const {colors} = useAppTheme();
+  return useMemo(() => makeShellStyles(colors), [colors]);
+}
 
 function DrawerSidebar({
   profile,
@@ -66,9 +196,21 @@ function DrawerSidebar({
   navigate: (screen: ScreenKey) => void;
   signOut: () => void;
 }) {
+  const {colors} = useAppTheme();
+  const styles = useShellStyles();
+  // ParentApp already wraps Drawer in SafeAreaView with top inset.
+  // Applying edges={['top']} here again creates a blank band above the header.
   return (
-    <SafeAreaView style={styles.drawerSafe} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.drawerSafe} edges={['bottom']}>
       <View style={styles.drawerHeader}>
+        <View style={styles.drawerBrandRow}>
+          <Image
+            source={require('./assets/eklavya-logo.png')}
+            style={styles.drawerBrandLogo}
+            accessibilityLabel="Eklavya"
+          />
+          <Text style={styles.drawerBrandName}>Eklavya</Text>
+        </View>
         <View style={styles.drawerAvatar}>
           <Text style={styles.drawerInitials}>{initials(profile?.name || 'Parent')}</Text>
         </View>
@@ -82,7 +224,15 @@ function DrawerSidebar({
             <List.Item
               key={item.key}
               onPress={() => navigate(item.key)}
-              thumb={<AntIcon name={item.icon} color={isActive ? colors.primary : colors.weak} size={20} />}
+              thumb={
+                <View style={styles.menuThumb}>
+                  <AntIcon
+                    name={item.icon}
+                    color={isActive ? colors.primary : colors.weak}
+                    size={20}
+                  />
+                </View>
+              }
               arrow={isActive ? 'horizontal' : undefined}
               styles={{Line: isActive ? styles.activeMenuLine : undefined}}>
               <Text style={isActive ? styles.activeMenuText : styles.menuText}>{item.title}</Text>
@@ -107,6 +257,8 @@ function TopHeader({
   canGoBack,
   noticeCount,
   profile,
+  avatarUri,
+  showAvatar,
   onMenu,
   onBack,
   onNotices,
@@ -116,20 +268,31 @@ function TopHeader({
   canGoBack: boolean;
   noticeCount: number;
   profile: AnyRecord | null;
+  avatarUri?: string | null;
+  showAvatar?: boolean;
   onMenu: () => void;
   onBack: () => void;
   onNotices: () => void;
   onProfile: () => void;
 }) {
+  const {colors} = useAppTheme();
+  const styles = useShellStyles();
   return (
     <View style={styles.topBar}>
       <Flex align="center" justify="between">
         <TouchableOpacity style={styles.iconHit} onPress={canGoBack ? onBack : onMenu}>
           <AntIcon name={canGoBack ? 'left' : 'menu'} color={colors.text} size={22} />
         </TouchableOpacity>
-        <Text style={styles.topBarTitle} numberOfLines={1}>
-          {title}
-        </Text>
+        <Flex align="center" style={styles.topBarCenter}>
+          {showAvatar ? (
+            <Avatar uri={avatarUri} name={title} size={28} style={styles.topBarAvatar} />
+          ) : null}
+          <Text
+            style={[styles.topBarTitle, showAvatar ? styles.topBarTitleWithAvatar : null]}
+            numberOfLines={1}>
+            {title}
+          </Text>
+        </Flex>
         <Flex align="center">
           <TouchableOpacity style={styles.iconHit} onPress={onNotices}>
             <Badge text={noticeCount > 0 ? noticeCount : undefined} overflowCount={9}>
@@ -159,6 +322,8 @@ function BottomNav({
   active: ScreenKey;
   onPress: (key: ScreenKey) => void;
 }) {
+  const {colors} = useAppTheme();
+  const styles = useShellStyles();
   return (
     <View style={styles.bottomNav}>
       {BOTTOM_TABS.map(tab => {
@@ -184,6 +349,8 @@ function BottomNav({
 }
 
 function ParentApp({onSignedOut}: {onSignedOut: () => void}) {
+  const {colors, isDark} = useAppTheme();
+  const styles = useShellStyles();
   const [route, setRoute] = useState<Route>({key: 'dashboard'});
   const [history, setHistory] = useState<Route[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -193,14 +360,23 @@ function ParentApp({onSignedOut}: {onSignedOut: () => void}) {
 
   const loadSession = useCallback(async () => {
     try {
-      const [parent, selected, notices] = await Promise.all([
+      // Always validate the token on boot (`validate: true`). A cached child
+      // alone would skip the network and leave a revoked token looking signed-in.
+      const [parent, selected] = await Promise.all([
         getParentProfile(),
-        ensureSelectedChild(),
-        getSchoolNotices().catch(() => []),
+        ensureSelectedChild({validate: true}),
       ]);
       setProfile(parent);
       setChild(selected);
-      setNoticeCount(Array.isArray(notices) ? notices.length : 0);
+      try {
+        const notices = await getSchoolNotices();
+        setNoticeCount(Array.isArray(notices) ? notices.length : 0);
+      } catch (reason) {
+        if (reason instanceof ApiError && reason.status === 401) {
+          throw reason;
+        }
+        setNoticeCount(0);
+      }
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 401) {
         await clearSession();
@@ -284,7 +460,9 @@ function ParentApp({onSignedOut}: {onSignedOut: () => void}) {
       case 'feedback':
         return <FeedbackScreen />;
       case 'messages':
-        return <MessagesScreen />;
+        return <MessagesScreen navigate={navigate} />;
+      case 'chatRoom':
+        return <ChatRoomScreen params={route.params} />;
       case 'staff':
         return <StaffScreen />;
       case 'lessonPlans':
@@ -311,7 +489,10 @@ function ParentApp({onSignedOut}: {onSignedOut: () => void}) {
 
   return (
     <SafeAreaView style={styles.appSafe} edges={['top', 'bottom']}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.surface}
+      />
       <Drawer
         sidebar={
           <DrawerSidebar
@@ -328,10 +509,16 @@ function ParentApp({onSignedOut}: {onSignedOut: () => void}) {
         drawerBackgroundColor={colors.surface}>
         <View style={styles.appShell}>
           <TopHeader
-            title={screenTitle(route.key)}
+            title={
+              route.key === 'chatRoom' && route.params?.roomName
+                ? String(route.params.roomName)
+                : screenTitle(route.key)
+            }
             canGoBack={canGoBack}
             noticeCount={noticeCount}
             profile={profile}
+            avatarUri={route.key === 'chatRoom' ? route.params?.roomAvatar : null}
+            showAvatar={route.key === 'chatRoom'}
             onMenu={() => setDrawerOpen(true)}
             onBack={goBack}
             onNotices={() => navigate('notices')}
@@ -346,6 +533,7 @@ function ParentApp({onSignedOut}: {onSignedOut: () => void}) {
 }
 
 function Root() {
+  const styles = useShellStyles();
   const [booting, setBooting] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
 
@@ -353,6 +541,10 @@ function Root() {
     hasSession()
       .then(setAuthenticated)
       .finally(() => setBooting(false));
+  }, []);
+
+  useEffect(() => {
+    return onSessionExpired(() => setAuthenticated(false));
   }, []);
 
   if (booting) {
@@ -370,109 +562,29 @@ function Root() {
   );
 }
 
+function ThemedProvider({children}: {children: React.ReactNode}) {
+  const {antdTheme} = useAppTheme();
+  return (
+    <Provider theme={antdTheme} locale={enUS}>
+      {children}
+    </Provider>
+  );
+}
+
+const rootStyles = StyleSheet.create({
+  flex: {flex: 1},
+});
+
 export default function App() {
   return (
-    <GestureHandlerRootView style={styles.flex}>
+    <GestureHandlerRootView style={rootStyles.flex}>
       <SafeAreaProvider>
-        <Provider theme={antdTheme} locale={enUS}>
-          <Root />
-        </Provider>
+        <ThemeProvider>
+          <ThemedProvider>
+            <Root />
+          </ThemedProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  flex: {flex: 1},
-  appSafe: {flex: 1, backgroundColor: colors.surface},
-  appShell: {flex: 1, backgroundColor: colors.background},
-  topBar: {
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.l,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  topBarTitle: {
-    fontSize: font.xxl,
-    fontWeight: '600',
-    color: colors.text,
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 8,
-  },
-  iconHit: {
-    minWidth: 40,
-    minHeight: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 4,
-  },
-  headerAvatarText: {color: '#fff', fontSize: font.ms, fontWeight: '700'},
-  drawerSafe: {flex: 1, backgroundColor: colors.surface},
-  drawerHeader: {
-    paddingHorizontal: 22,
-    paddingTop: 22,
-    paddingBottom: spacing.xl - 4,
-    backgroundColor: '#f0f5ff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#adc6ff',
-  },
-  drawerAvatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: 3,
-    borderColor: colors.surface,
-  },
-  drawerInitials: {fontSize: 24, fontWeight: '700', color: '#fff'},
-  drawerName: {fontSize: font.huge, fontWeight: '700', color: colors.text, marginTop: 12},
-  drawerRole: {fontSize: font.main, color: colors.textSecondary, marginTop: 3},
-  drawerList: {marginTop: 10},
-  activeMenuLine: {backgroundColor: colors.wathet},
-  activeMenuText: {fontSize: font.l, fontWeight: '600', color: colors.primary},
-  menuText: {fontSize: font.l, color: colors.text},
-  drawerFooter: {
-    marginTop: 'auto',
-    padding: 18,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-  },
-  versionText: {fontSize: font.s, color: colors.weak, textAlign: 'center', marginTop: 12},
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-    paddingTop: 6,
-    paddingBottom: 4,
-  },
-  bottomNavItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-    minHeight: 48,
-  },
-  bottomNavLabel: {
-    marginTop: 2,
-    fontSize: font.s,
-    color: colors.weak,
-  },
-  bottomNavLabelActive: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-});

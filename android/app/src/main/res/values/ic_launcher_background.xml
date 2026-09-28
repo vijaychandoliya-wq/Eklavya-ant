@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Matches the plate colour in the supplied launcher artwork. -->
-    <color name="ic_launcher_background">#CD9D56</color>
+    <!-- Matches the navy plate in assets/eklavya-logo.png -->
+    <color name="ic_launcher_background">#073559</color>
 </resources>

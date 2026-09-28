@@ -1,26 +1,33 @@
 import React, {useCallback, useState} from 'react';
-import {Tabs, View, WhiteSpace} from '@ant-design/react-native';
 import {AnyRecord, getClassNotices, getSchoolNotices} from '../api';
 import {cleanDate, useAsyncData} from '../hooks';
-import {EmptyBlock, LoadingBlock, PageTitle, RecordCard, Screen, SectionTitle} from '../components/ui';
+import {
+  EmptyBlock,
+  LoadingBlock,
+  PageTitle,
+  RecordCard,
+  Screen,
+  SectionTitle,
+  SegmentedTabs,
+} from '../components/ui';
 
 const TABS = [
-  {title: 'School', key: 'school'},
-  {title: 'Class', key: 'class'},
+  {key: 'school', label: 'School'},
+  {key: 'class', label: 'Class'},
 ];
 
 export default function NoticesScreen() {
-  const [tab, setTab] = useState(0);
-  const loader = useCallback(() => (tab === 0 ? getSchoolNotices() : getClassNotices()), [tab]);
+  const [tab, setTab] = useState('school');
+  const loader = useCallback(
+    () => (tab === 'school' ? getSchoolNotices() : getClassNotices()),
+    [tab],
+  );
   const {data, loading, refreshing, error, refresh, clearError} = useAsyncData<AnyRecord[]>(loader, []);
 
   return (
     <Screen refreshing={refreshing} onRefresh={refresh} error={error} onDismissError={clearError}>
       <PageTitle title="Notice board" subtitle="School and class announcements." />
-      <Tabs tabs={TABS} page={tab} onChange={(_item, index) => setTab(index)} swipeable={false} noRenderContent>
-        <View />
-      </Tabs>
-      <WhiteSpace size="lg" />
+      <SegmentedTabs items={TABS} value={tab} onChange={setTab} />
       {loading ? (
         <LoadingBlock />
       ) : data.length ? (

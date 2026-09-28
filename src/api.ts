@@ -1,12 +1,53 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BASE_URL = 'https://app.gurukull.in/api';
+// Modern Multi-Tenant Backend Core URL
+const BASE_URL =
+  (typeof process !== 'undefined' && process.env?.API_URL) ||
+  'http://localhost:8000';
+
+const MEDIA_ORIGIN =
+  (typeof process !== 'undefined' && process.env?.MEDIA_URL) ||
+  'http://localhost:8000';
+
 const TOKEN_KEY = 'eklavya.parent.token';
 const DEVICE_KEY = 'eklavya.parent.device';
 const CHILD_KEY = 'eklavya.parent.child';
 const PARENT_KEY = 'eklavya.parent.profile';
+const SCHOOL_CODE_KEY = 'eklavya.parent.school_code';
 
 export type AnyRecord = Record<string, any>;
+
+/** Turn relative upload paths into absolute media URLs for Image. */
+export function resolveMediaUrl(value?: string | null): string | null {
+  if (value == null) {
+    return null;
+  }
+  const raw = String(value).trim();
+  if (!raw || raw === 'null' || raw === 'undefined') {
+    return null;
+  }
+  if (/^https?:\/\//i.test(raw) || raw.startsWith('data:')) {
+    return raw;
+  }
+  if (raw.startsWith('//')) {
+    return `https:${raw}`;
+  }
+  if (raw.startsWith('/')) {
+    return `${MEDIA_ORIGIN}${raw}`;
+  }
+  return `${MEDIA_ORIGIN}/${raw}`;
+}
+
+/** First usable avatar URL from common API field names. */
+export function pickAvatar(...candidates: Array<string | null | undefined>): string | null {
+  for (const candidate of candidates) {
+    const url = resolveMediaUrl(candidate);
+    if (url) {
+      return url;
+    }
+  }
+  return null;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -26,12 +67,41 @@ function encode(values: Record<string, string | number | undefined>) {
     .join('&');
 }
 
+type AuthListener = () => void;
+const authListeners = new Set<AuthListener>();
+
+/** Subscribe to forced sign-out (expired / revoked token). Returns unsubscribe. */
+export function onSessionExpired(listener: AuthListener) {
+  authListeners.add(listener);
+  return () => {
+    authListeners.delete(listener);
+  };
+}
+
+const PUBLIC_PATHS = ['/parent/login', '/logout/devices', '/password/reset', '/password/store'];
+
+async function notifySessionExpired() {
+  await AsyncStorage.removeItem(TOKEN_KEY);
+  await AsyncStorage.removeItem(CHILD_KEY);
+  await AsyncStorage.removeItem(PARENT_KEY);
+  authListeners.forEach(listener => {
+    try {
+      listener();
+    } catch {
+      // Listeners must not break API error propagation.
+    }
+  });
+}
+
 async function request(path: string, options: RequestInit = {}) {
   const token = await AsyncStorage.getItem(TOKEN_KEY);
+  const schoolCode = (await AsyncStorage.getItem(SCHOOL_CODE_KEY)) || 'GW101';
+
   const response = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers: {
       Accept: 'application/json',
+      'x-school-code': schoolCode,
       ...(options.body ? {'Content-Type': 'application/x-www-form-urlencoded'} : {}),
       ...(token ? {Authorization: `Bearer ${token}`} : {}),
       ...(options.headers || {}),
@@ -48,11 +118,17 @@ async function request(path: string, options: RequestInit = {}) {
 
   if (!response.ok || payload.success === false) {
     const firstFieldError = payload.errors ? Object.values(payload.errors).flat()[0] : undefined;
-    throw new ApiError(
+    const error = new ApiError(
       String(firstFieldError || payload.message || 'Request failed. Please try again.'),
       response.status,
       payload.errors,
     );
+    // Stale tokens survive reload via cached child profile; clear them so boot
+    // cannot keep a zombie "authenticated" UI that only shows Unauthenticated.
+    if (response.status === 401 && token && !PUBLIC_PATHS.includes(path)) {
+      await notifySessionExpired();
+    }
+    throw error;
   }
   return payload;
 }
@@ -149,17 +225,26 @@ export async function setSelectedChild(child: AnyRecord) {
   await AsyncStorage.setItem(CHILD_KEY, JSON.stringify(child));
 }
 
-export async function ensureSelectedChild(): Promise<AnyRecord> {
+/**
+ * Resolve the active child. Pass `{validate: true}` on app boot so a cached
+ * child cannot skip the network check that proves the Sanctum token still works.
+ */
+export async function ensureSelectedChild(options?: {validate?: boolean}): Promise<AnyRecord> {
   const existing = await getSelectedChild();
-  if (existing?.student_id) {
+  if (existing?.student_id && !options?.validate) {
     return existing;
   }
   const children = await getChildren();
   if (!children.length) {
     throw new ApiError('No children are linked to this parent account.', 404);
   }
-  await setSelectedChild(children[0]);
-  return children[0];
+  const matched =
+    existing?.student_id != null
+      ? children.find(child => String(child.student_id) === String(existing.student_id))
+      : undefined;
+  const selected = matched || children[0];
+  await setSelectedChild(selected);
+  return selected;
 }
 
 async function childId() {
@@ -182,9 +267,134 @@ export const getMagazine = async (page = 1) =>
 export const getUpcomingEvents = async () => listOf(await request('/v2/my-events/upcoming'));
 export const getClassEvents = async (studentId?: string | number) =>
   listOf(await request(`/v2/my-events/${studentId || (await childId())}/class`));
-export const getMessages = async () => listOf(await request('/v2/messages'));
+/** Admin SendMail / emergency messages — API fields are subject, message, sentAt. */
+export const getMessages = async () =>
+  listOf(await request('/v2/messages')).map(item => ({
+    ...item,
+    title: item.title || item.subject || item.sender || 'Message',
+    body: item.message || item.body || item.content || '',
+    date: item.sentAt || item.created_at || item.date || item.fired_at || '',
+    sender: item.sender || item.from || 'School',
+  }));
 export const getNotifications = async (studentId?: string | number) =>
   listOf(await request(`/v2/notifications/${studentId || (await childId())}`));
+
+// ------------------------------------------------------------------- chat ---
+
+function normalizeChatContact(item: AnyRecord): AnyRecord {
+  return {
+    ...item,
+    id: item.id ?? item.value,
+    name: item.name || item.label || 'Contact',
+    role: item.role || '',
+    avatar: pickAvatar(
+      item.avatar,
+      item.photo,
+      item.image,
+      item.profile_photo,
+      item.profile_image,
+      item.profileImage,
+    ),
+  };
+}
+
+function normalizeChatRoom(item: AnyRecord): AnyRecord {
+  return {
+    ...item,
+    name: item.name || 'Chat',
+    avatar: pickAvatar(
+      item.avatar,
+      item.photo,
+      item.image,
+      item.profile_photo,
+      item.profile_image,
+      item.otherUserAvatar,
+    ),
+  };
+}
+
+function normalizeChatMessage(item: AnyRecord): AnyRecord {
+  return {
+    ...item,
+    senderName: item.senderName || item.sender_name || 'User',
+    avatar: pickAvatar(
+      item.senderAvatar,
+      item.sender_avatar,
+      item.avatar,
+      item.photo,
+      item.profile_photo,
+    ),
+  };
+}
+
+export async function getChatContacts(): Promise<{contacts: AnyRecord[]; currentUser: AnyRecord}> {
+  const payload = await request('/v2/chat/contacts');
+  const data = dataOf(payload);
+  const currentUser = data.currentUser || {};
+  return {
+    contacts: (Array.isArray(data.contacts) ? data.contacts : []).map(normalizeChatContact),
+    currentUser: {
+      ...currentUser,
+      avatar: pickAvatar(
+        currentUser.avatar,
+        currentUser.photo,
+        currentUser.image,
+        currentUser.profile_photo,
+        currentUser.profile_image,
+      ),
+    },
+  };
+}
+
+export const getChatRooms = async () =>
+  listOf(await request('/v2/chat/rooms')).map(normalizeChatRoom);
+
+export async function getChatMessages(roomId: string | number): Promise<{
+  messages: AnyRecord[];
+  room: AnyRecord;
+}> {
+  const payload = await request(`/v2/chat/messages/${roomId}`);
+  const room = payload.room || {};
+  const messages = listOf(payload).map(normalizeChatMessage);
+  const peerAvatar =
+    pickAvatar(room.avatar, room.photo, room.image, room.profile_photo) ||
+    messages.find(item => !item.isMe && item.avatar)?.avatar ||
+    null;
+  return {
+    messages,
+    room: {
+      ...room,
+      name: room.name || 'Chat',
+      avatar: peerAvatar,
+    },
+  };
+}
+
+export const sendChatMessage = async (chatRoomId: string | number, messageText: string) =>
+  request('/v2/chat/messages', {
+    method: 'POST',
+    body: encode({chatRoomId, messageText}),
+  });
+
+export async function createChatRoom(values: {
+  type: 'direct' | 'group';
+  recipientId?: string | number;
+  name?: string;
+  participantIds?: Array<string | number>;
+}) {
+  const payload = await request('/v2/chat/rooms', {
+    method: 'POST',
+    body: encode({
+      type: values.type,
+      recipientId: values.recipientId,
+      name: values.name,
+      ...(values.participantIds?.length
+        ? Object.fromEntries(values.participantIds.map((id, i) => [`participantIds[${i}]`, id]))
+        : {}),
+    }),
+  });
+  return dataOf(payload);
+}
 
 // -------------------------------------------------------------- academics ---
 

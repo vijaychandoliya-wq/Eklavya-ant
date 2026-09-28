@@ -1,15 +1,21 @@
-import React, {useCallback} from 'react';
+import React, {useCallback, useMemo} from 'react';
 import {Image, StyleSheet} from 'react-native';
 import {Card, Text, WhiteSpace} from '@ant-design/react-native';
 import {AnyRecord, getSchool} from '../api';
 import {useAsyncData} from '../hooks';
 import {CardContent, LoadingBlock, PageTitle, Screen} from '../components/ui';
-import {colors, font, radius} from '../theme';
+import {colorsDark, font, radius, useAppTheme, type AppColors} from '../theme';
+
+type Palette = AppColors | typeof colorsDark;
 
 export default function SchoolScreen() {
+  const {colors} = useAppTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const loader = useCallback(() => getSchool(), []);
   const {data, loading, refreshing, error, refresh, clearError} = useAsyncData<AnyRecord>(loader, {});
-  if (loading) return <LoadingBlock />;
+  if (loading) {
+    return <LoadingBlock />;
+  }
   return (
     <Screen refreshing={refreshing} onRefresh={refresh} error={error} onDismissError={clearError}>
       <PageTitle title="School info" subtitle="Details about your school." />
@@ -23,19 +29,26 @@ export default function SchoolScreen() {
             ['Phone', data.phone || data.schoolPhone],
             ['Email', data.email || data.schoolEmail],
             ['Website', data.website],
-          ].filter(([, value]) => value).map(([label, value]) => (
-            <Text key={String(label)} style={styles.row}><Text style={styles.label}>{label}: </Text>{String(value)}</Text>
-          ))}
+          ]
+            .filter(([, value]) => value)
+            .map(([label, value]) => (
+              <Text key={String(label)} style={styles.row}>
+                <Text style={styles.label}>{label}: </Text>
+                {String(value)}
+              </Text>
+            ))}
         </CardContent>
       </Card>
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {borderRadius: radius.l, overflow: 'hidden'},
-  logo: {width: 72, height: 72, borderRadius: 12, marginBottom: 12},
-  name: {fontSize: font.huge, fontWeight: '700', color: colors.text},
-  row: {fontSize: font.main, color: colors.textSecondary, marginTop: 8, lineHeight: 20},
-  label: {fontWeight: '600', color: colors.text},
-});
+function makeStyles(c: Palette) {
+  return StyleSheet.create({
+    card: {borderRadius: radius.l, overflow: 'hidden'},
+    logo: {width: 72, height: 72, borderRadius: 12, marginBottom: 12},
+    name: {fontSize: font.huge, fontWeight: '700', color: c.text},
+    row: {fontSize: font.main, color: c.textSecondary, marginTop: 8, lineHeight: 20},
+    label: {fontWeight: '600', color: c.text},
+  });
+}
