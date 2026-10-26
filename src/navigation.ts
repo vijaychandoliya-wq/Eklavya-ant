@@ -79,8 +79,8 @@ export const DRAWER_MENU = SCREENS.filter(
   screen => !screen.nested && !BOTTOM_KEYS.has(screen.key),
 );
 
-/** @deprecated use DRAWER_MENU — kept for any leftover imports */
-export const MENU = DRAWER_MENU;
+/** @deprecated use DRAWER_MENU for the drawer; MENU remains the complete route catalog for clients. */
+export const MENU = SCREENS;
 
 export function screenTitle(key: ScreenKey) {
   return SCREENS.find(screen => screen.key === key)?.title || 'Eklavya';

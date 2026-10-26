@@ -430,7 +430,7 @@ function ParentApp({onSignedOut}: {onSignedOut: () => void}) {
       case 'leave':
         return <LeaveScreen />;
       case 'changePassword':
-        return <ChangePasswordScreen onDone={goBack} />;
+        return <ChangePasswordScreen onDone={() => {void clearSession().catch(() => {}).finally(onSignedOut);}} />;
       case 'trackLocation':
         return <TrackLocationScreen />;
       case 'school':
@@ -482,7 +482,7 @@ function ParentApp({onSignedOut}: {onSignedOut: () => void}) {
           />
         );
     }
-  }, [route, profile, navigate, goBack]);
+  }, [route, profile, navigate, onSignedOut]);
 
   const canGoBack = history.length > 0;
   const showBottomTabs = isBottomTab(route.key);

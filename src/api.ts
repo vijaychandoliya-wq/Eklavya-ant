@@ -1,19 +1,52 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {getSessionToken,setSessionToken,clearSessionToken} from './secureSession';
 
-// Modern Multi-Tenant Backend Core URL
+declare const process: any;
+
+// Shared multi-tenant Cloudflare Edge Backend URL. The selected school code
+// is sent with every request and is resolved by the Worker.
+export const PRODUCTION_BASE_URL = 'https://gurukul-worker-api.gurukull.workers.dev';
+
 const BASE_URL =
-  (typeof process !== 'undefined' && process.env?.API_URL) ||
-  'http://localhost:8000';
+  (typeof process !== 'undefined' && process?.env?.API_URL) ||
+  PRODUCTION_BASE_URL;
 
 const MEDIA_ORIGIN =
-  (typeof process !== 'undefined' && process.env?.MEDIA_URL) ||
-  'http://localhost:8000';
+  (typeof process !== 'undefined' && process?.env?.MEDIA_URL) ||
+  PRODUCTION_BASE_URL;
 
-const TOKEN_KEY = 'eklavya.parent.token';
 const DEVICE_KEY = 'eklavya.parent.device';
 const CHILD_KEY = 'eklavya.parent.child';
 const PARENT_KEY = 'eklavya.parent.profile';
 const SCHOOL_CODE_KEY = 'eklavya.parent.school_code';
+const BASE_URL_KEY = 'eklavya.parent.base_url';
+
+let baseUrlCache: string = PRODUCTION_BASE_URL;
+
+export async function getBaseUrl(): Promise<string> {
+  const stored = ((await AsyncStorage.getItem(BASE_URL_KEY)) || '').replace(/\/$/, '');
+  baseUrlCache = stored || BASE_URL;
+  return baseUrlCache;
+}
+
+export async function setBaseUrl(url: string) {
+  baseUrlCache = url.trim().replace(/\/$/, '') || PRODUCTION_BASE_URL;
+  await AsyncStorage.setItem(BASE_URL_KEY, baseUrlCache);
+}
+
+
+export async function setSchoolCode(code: string) {
+  const normalized = code.trim().toUpperCase();
+  await AsyncStorage.setItem(SCHOOL_CODE_KEY, normalized);
+  // A school code is not necessarily a hostname. Keep all mobile traffic on
+  // the shared API and let the Worker resolve the tenant from the header.
+  await setBaseUrl(PRODUCTION_BASE_URL);
+}
+
+export async function getSchoolCode(): Promise<string> {
+  return (await AsyncStorage.getItem(SCHOOL_CODE_KEY)) || '';
+}
+
 
 export type AnyRecord = Record<string, any>;
 
@@ -32,10 +65,11 @@ export function resolveMediaUrl(value?: string | null): string | null {
   if (raw.startsWith('//')) {
     return `https:${raw}`;
   }
+  const origin = baseUrlCache || MEDIA_ORIGIN;
   if (raw.startsWith('/')) {
-    return `${MEDIA_ORIGIN}${raw}`;
+    return `${origin}${raw}`;
   }
-  return `${MEDIA_ORIGIN}/${raw}`;
+  return `${origin}/${raw}`;
 }
 
 /** First usable avatar URL from common API field names. */
@@ -78,10 +112,10 @@ export function onSessionExpired(listener: AuthListener) {
   };
 }
 
-const PUBLIC_PATHS = ['/parent/login', '/logout/devices', '/password/reset', '/password/store'];
+const PUBLIC_PATHS = ['/api/parent/login', '/parent/login', '/logout/devices', '/password/reset', '/password/store'];
 
 async function notifySessionExpired() {
-  await AsyncStorage.removeItem(TOKEN_KEY);
+  await clearSessionToken();
   await AsyncStorage.removeItem(CHILD_KEY);
   await AsyncStorage.removeItem(PARENT_KEY);
   authListeners.forEach(listener => {
@@ -94,10 +128,12 @@ async function notifySessionExpired() {
 }
 
 async function request(path: string, options: RequestInit = {}) {
-  const token = await AsyncStorage.getItem(TOKEN_KEY);
-  const schoolCode = (await AsyncStorage.getItem(SCHOOL_CODE_KEY)) || 'GW101';
+  const token = await getSessionToken();
+  const schoolCode = (await AsyncStorage.getItem(SCHOOL_CODE_KEY)) || '';
+  const baseUrl = await getBaseUrl();
 
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await fetch(`${baseUrl}${path}`, {
+
     ...options,
     headers: {
       Accept: 'application/json',
@@ -148,16 +184,16 @@ const dataOf = (payload: any): AnyRecord => payload?.data || {};
 
 // ---------------------------------------------------------------- session ---
 
-export async function login(mobile: string, password: string) {
+export async function login(identifier: string, password: string) {
   let deviceId = await AsyncStorage.getItem(DEVICE_KEY);
   if (!deviceId) {
     deviceId = `eklavya-ant-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     await AsyncStorage.setItem(DEVICE_KEY, deviceId);
   }
-  const payload = await request('/parent/login', {
+  const payload = await request('/api/parent/login', {
     method: 'POST',
     body: encode({
-      email: mobile.trim(),
+      email: identifier.trim(),
       password,
       device_name: 'Eklavya Parent',
       device_id: deviceId,
@@ -166,7 +202,7 @@ export async function login(mobile: string, password: string) {
   if (!payload.token) {
     throw new ApiError(payload.message || 'Login did not return an access token.', 500);
   }
-  await AsyncStorage.setItem(TOKEN_KEY, payload.token);
+  await setSessionToken(payload.token);
   await AsyncStorage.setItem(
     PARENT_KEY,
     JSON.stringify({
@@ -182,19 +218,19 @@ export async function logout() {
   try {
     await request('/v2/logout', {method: 'POST', body: ''});
   } finally {
-    await AsyncStorage.removeItem(TOKEN_KEY);
+    await clearSessionToken();
     await AsyncStorage.removeItem(CHILD_KEY);
     await AsyncStorage.removeItem(PARENT_KEY);
   }
 }
 
-export async function logoutAllDevices(mobile: string) {
-  return request('/logout/devices', {method: 'POST', body: encode({email: mobile.trim()})});
+export async function logoutAllDevices(identifier: string) {
+  return request('/logout/devices', {method: 'POST', body: encode({email: identifier.trim()})});
 }
 
-export const hasSession = async () => Boolean(await AsyncStorage.getItem(TOKEN_KEY));
+export const hasSession = async () => Boolean(await getSessionToken());
 export const clearSession = async () => {
-  await AsyncStorage.removeItem(TOKEN_KEY);
+  await clearSessionToken();
   await AsyncStorage.removeItem(CHILD_KEY);
   await AsyncStorage.removeItem(PARENT_KEY);
 };
