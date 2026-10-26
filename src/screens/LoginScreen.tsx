@@ -6,6 +6,7 @@ import {login, logoutAllDevices, setSchoolCode, getSchoolCode} from '../api';
 import {friendlyError} from '../hooks';
 import {AntIcon, ButtonLabel, CardContent, ErrorBar, cardHeaderStyles} from '../components/ui';
 import {colorsDark, font, radius, spacing, useAppTheme, type AppColors} from '../theme';
+import {AVAILABLE_MOBILE_LOCALES,useLanguage} from '../i18n';
 
 type Palette = AppColors | typeof colorsDark;
 
@@ -25,11 +26,14 @@ function makeStyles(c: Palette) {
     title: {fontSize: 32, fontWeight: '700', color: c.text},
     subtitle: {fontSize: font.main, color: c.textSecondary, marginTop: 8, lineHeight: 22},
     card: {borderRadius: radius.l, overflow: 'hidden'},
+    languageRow: {flexDirection:'row', justifyContent:'flex-end', gap:6, marginBottom:12},
+    languageButton: {flex:1},
   });
 }
 
 export default function LoginScreen({onSuccess}: {onSuccess: () => void}) {
   const {colors, isDark} = useAppTheme();
+  const {locale,setLocale,t}=useLanguage();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [schoolCode, setSchoolCodeState] = useState('');
   const [mobile, setMobile] = useState('');
@@ -80,6 +84,7 @@ export default function LoginScreen({onSuccess}: {onSuccess: () => void}) {
       />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <View style={styles.languageRow}>{AVAILABLE_MOBILE_LOCALES.map(option=><Button key={option.tag} type={locale===option.tag?'primary':'ghost'} size="small" style={styles.languageButton} onPress={()=>void setLocale(option.tag)}>{option.label}</Button>)}</View>
           <View style={styles.brandMark}>
             <Image
               source={require('../../assets/eklavya-logo.png')}
@@ -93,14 +98,14 @@ export default function LoginScreen({onSuccess}: {onSuccess: () => void}) {
           <Card style={styles.card}>
             <Card.Header
               styles={cardHeaderStyles}
-              title="Parent sign in"
+              title={t('parentSignIn')}
               thumb={<AntIcon name="safety-certificate" />}
             />
             <CardContent>
               <ErrorBar message={error} onClose={() => setError('')} />
               <WhiteSpace size="lg" />
               <Form layout="vertical">
-                <Form.Item label="School code" required>
+                <Form.Item label={t('schoolCode')} required>
                   <Input
                     value={schoolCode}
                     onChangeText={setSchoolCodeState}
@@ -109,7 +114,7 @@ export default function LoginScreen({onSuccess}: {onSuccess: () => void}) {
                     placeholder="e.g. 117 or RAJESH"
                   />
                 </Form.Item>
-                <Form.Item label="Email or mobile number" required>
+                <Form.Item label={t('identifier')} required>
                   <Input
                     type="text"
                     value={mobile}
@@ -121,7 +126,7 @@ export default function LoginScreen({onSuccess}: {onSuccess: () => void}) {
                   />
                 </Form.Item>
 
-                <Form.Item label="Password" required>
+                <Form.Item label={t('password')} required>
                   <Input
                     type="password"
                     value={password}
@@ -133,7 +138,7 @@ export default function LoginScreen({onSuccess}: {onSuccess: () => void}) {
               <WhiteSpace size="lg" />
               <Button type="primary" loading={loading} onPress={submit}>
                 <ButtonLabel icon="check-circle" tone="onPrimary">
-                  Sign in
+                  {t('signIn')}
                 </ButtonLabel>
               </Button>
             </CardContent>

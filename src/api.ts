@@ -229,6 +229,18 @@ export async function logoutAllDevices(identifier: string) {
 }
 
 export const hasSession = async () => Boolean(await getSessionToken());
+
+export async function getLocalePreference():Promise<AnyRecord>{
+  const payload=await request('/api/portal/locale-preference');
+  return payload?.data || {};
+}
+
+export async function saveLocalePreference(localeTag:string,version:number):Promise<AnyRecord>{
+  const payload=await request('/api/portal/locale-preference',{
+    method:'PUT',body:JSON.stringify({mode:'explicit',localeTag,version}),headers:{'Content-Type':'application/json','Idempotency-Key':`locale_${Date.now()}_${Math.random().toString(36).slice(2,10)}`},
+  });
+  return payload?.data || {};
+}
 export const clearSession = async () => {
   await clearSessionToken();
   await AsyncStorage.removeItem(CHILD_KEY);

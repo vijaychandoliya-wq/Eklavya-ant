@@ -4,6 +4,7 @@ import {Badge, Button, Drawer, Flex, List, Provider, Text, View} from '@ant-desi
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import enUS from '@ant-design/react-native/lib/locale-provider/en_US';
+import {LanguageProvider} from './src/i18n';
 import {
   AnyRecord,
   ApiError,
@@ -581,7 +582,7 @@ export default function App() {
       <SafeAreaProvider>
         <ThemeProvider>
           <ThemedProvider>
-            <Root />
+            <LanguageProvider><Root /></LanguageProvider>
           </ThemedProvider>
         </ThemeProvider>
       </SafeAreaProvider>
