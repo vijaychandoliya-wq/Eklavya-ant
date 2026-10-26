@@ -2,7 +2,7 @@ import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {StyleSheet} from 'react-native';
 import {Button, Card, Text, WhiteSpace} from '@ant-design/react-native';
 import {AnyRecord, getChildDetails, getLocalePreference, getSelectedChild, saveLocalePreference} from '../api';
-import {useAsyncData} from '../hooks';
+import {friendlyError,useAsyncData} from '../hooks';
 import {
   AntIcon,
   ButtonLabel,
@@ -58,9 +58,10 @@ export default function ProfileScreen({
   const {locale,setLocale,t}=useLanguage();
   const [preferenceVersion,setPreferenceVersion]=useState(0);
   const [savingLanguage,setSavingLanguage]=useState(false);
+  const [languageError,setLanguageError]=useState('');
   const styles = useMemo(() => makeStyles(colors), [colors]);
   useEffect(()=>{getLocalePreference().then(value=>{if(AVAILABLE_MOBILE_LOCALES.some(option=>option.tag===value.localeTag))void setLocale(value.localeTag);setPreferenceVersion(Number(value.version)||0);}).catch(()=>undefined);},[setLocale]);
-  const saveLanguage=async()=>{try{setSavingLanguage(true);const saved=await saveLocalePreference(locale,preferenceVersion);setPreferenceVersion(Number(saved.version)||preferenceVersion+1);}finally{setSavingLanguage(false);}};
+  const saveLanguage=async()=>{try{setSavingLanguage(true);setLanguageError('');const saved=await saveLocalePreference(locale,preferenceVersion);setPreferenceVersion(Number(saved.version)||preferenceVersion+1);}catch(error){setLanguageError(friendlyError(error));}finally{setSavingLanguage(false);}};
 
   const loader = useCallback(async () => {
     const child = await getSelectedChild();
@@ -130,6 +131,7 @@ export default function ProfileScreen({
         <CardContent>
           <Text style={styles.themeHint}>{t('languageHelp')}</Text>
           <SegmentedTabs items={AVAILABLE_MOBILE_LOCALES.map(option=>({key:option.tag,label:option.label}))} value={locale} onChange={key => void setLocale(key as typeof locale)} style={styles.themeSegment} />
+          {languageError?<Text style={[styles.themeHint,{color:colors.danger,marginTop:10}]}>{languageError}</Text>:null}
           <WhiteSpace size="md" />
           <Button type="primary" loading={savingLanguage} onPress={()=>void saveLanguage()}><ButtonLabel icon="check-circle" tone="onPrimary">{t('saveLanguage')}</ButtonLabel></Button>
         </CardContent>
