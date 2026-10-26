@@ -4,6 +4,7 @@ import {Badge, Button, Drawer, Flex, List, Provider, Text, View} from '@ant-desi
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import enUS from '@ant-design/react-native/lib/locale-provider/en_US';
+import {LanguageProvider} from './src/i18n';
 import {
   AnyRecord,
   ApiError,
@@ -430,7 +431,7 @@ function ParentApp({onSignedOut}: {onSignedOut: () => void}) {
       case 'leave':
         return <LeaveScreen />;
       case 'changePassword':
-        return <ChangePasswordScreen onDone={goBack} />;
+        return <ChangePasswordScreen onDone={() => {void clearSession().catch(() => {}).finally(onSignedOut);}} />;
       case 'trackLocation':
         return <TrackLocationScreen />;
       case 'school':
@@ -482,7 +483,7 @@ function ParentApp({onSignedOut}: {onSignedOut: () => void}) {
           />
         );
     }
-  }, [route, profile, navigate, goBack]);
+  }, [route, profile, navigate, onSignedOut]);
 
   const canGoBack = history.length > 0;
   const showBottomTabs = isBottomTab(route.key);
@@ -581,7 +582,7 @@ export default function App() {
       <SafeAreaProvider>
         <ThemeProvider>
           <ThemedProvider>
-            <Root />
+            <LanguageProvider><Root /></LanguageProvider>
           </ThemedProvider>
         </ThemeProvider>
       </SafeAreaProvider>

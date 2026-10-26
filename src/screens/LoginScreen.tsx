@@ -1,11 +1,12 @@
-import React, {useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {Image, KeyboardAvoidingView, Platform, ScrollView, StatusBar, StyleSheet} from 'react-native';
 import {Button, Card, Form, Input, Text, View, WhiteSpace} from '@ant-design/react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {login, logoutAllDevices} from '../api';
+import {login, logoutAllDevices, setSchoolCode, getSchoolCode} from '../api';
 import {friendlyError} from '../hooks';
 import {AntIcon, ButtonLabel, CardContent, ErrorBar, cardHeaderStyles} from '../components/ui';
 import {colorsDark, font, radius, spacing, useAppTheme, type AppColors} from '../theme';
+import {AVAILABLE_MOBILE_LOCALES,useLanguage} from '../i18n';
 
 type Palette = AppColors | typeof colorsDark;
 
@@ -25,28 +26,38 @@ function makeStyles(c: Palette) {
     title: {fontSize: 32, fontWeight: '700', color: c.text},
     subtitle: {fontSize: font.main, color: c.textSecondary, marginTop: 8, lineHeight: 22},
     card: {borderRadius: radius.l, overflow: 'hidden'},
+    languageRow: {flexDirection:'row', justifyContent:'flex-end', gap:6, marginBottom:12},
+    languageButton: {flex:1},
   });
 }
 
 export default function LoginScreen({onSuccess}: {onSuccess: () => void}) {
   const {colors, isDark} = useAppTheme();
+  const {locale,setLocale,t}=useLanguage();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const [schoolCode, setSchoolCodeState] = useState('');
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    getSchoolCode().then(setSchoolCodeState);
+  }, []);
+
   const submit = async () => {
-    if (!mobile.trim() || !password) {
-      setError('Enter your mobile number and password.');
+    if (!schoolCode.trim() || !mobile.trim() || !password) {
+      setError('Enter your school code, parent email/mobile and password.');
       return;
     }
     setLoading(true);
     setError('');
     try {
+      await setSchoolCode(schoolCode);
       await login(mobile, password);
       onSuccess();
     } catch (reason: any) {
+
       const message = friendlyError(reason);
       if (/another device/i.test(message)) {
         try {
@@ -73,6 +84,7 @@ export default function LoginScreen({onSuccess}: {onSuccess: () => void}) {
       />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <View style={styles.languageRow}>{AVAILABLE_MOBILE_LOCALES.map(option=><Button key={option.tag} type={locale===option.tag?'primary':'ghost'} size="small" style={styles.languageButton} onPress={()=>void setLocale(option.tag)}>{option.label}</Button>)}</View>
           <View style={styles.brandMark}>
             <Image
               source={require('../../assets/eklavya-logo.png')}
@@ -86,34 +98,47 @@ export default function LoginScreen({onSuccess}: {onSuccess: () => void}) {
           <Card style={styles.card}>
             <Card.Header
               styles={cardHeaderStyles}
-              title="Parent sign in"
+              title={t('parentSignIn')}
               thumb={<AntIcon name="safety-certificate" />}
             />
             <CardContent>
               <ErrorBar message={error} onClose={() => setError('')} />
               <WhiteSpace size="lg" />
               <Form layout="vertical">
-                <Form.Item label="Mobile number" required>
+                <Form.Item label={t('schoolCode')} required>
                   <Input
-                    type="number"
-                    value={mobile}
-                    onChangeText={setMobile}
-                    placeholder="Registered mobile number"
+                    value={schoolCode}
+                    onChangeText={setSchoolCodeState}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    placeholder="e.g. 117 or RAJESH"
                   />
                 </Form.Item>
-                <Form.Item label="Password" required>
+                <Form.Item label={t('identifier')} required>
+                  <Input
+                    type="text"
+                    value={mobile}
+                    onChangeText={setMobile}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    placeholder="Registered email or mobile"
+                  />
+                </Form.Item>
+
+                <Form.Item label={t('password')} required>
                   <Input
                     type="password"
                     value={password}
                     onChangeText={setPassword}
-                    placeholder="Password"
+                    placeholder="Enter the password generated by admin"
                   />
                 </Form.Item>
               </Form>
               <WhiteSpace size="lg" />
               <Button type="primary" loading={loading} onPress={submit}>
                 <ButtonLabel icon="check-circle" tone="onPrimary">
-                  Sign in
+                  {t('signIn')}
                 </ButtonLabel>
               </Button>
             </CardContent>

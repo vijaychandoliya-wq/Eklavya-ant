@@ -1,6 +1,6 @@
 import React, {useCallback} from 'react';
 import {AnyRecord, getUpcomingEvents} from '../api';
-import {cleanDate, useAsyncData} from '../hooks';
+import {useAsyncData} from '../hooks';
 import {EmptyBlock, LoadingBlock, RecordCard, Screen} from '../components/ui';
 
 export default function EventsScreen() {
